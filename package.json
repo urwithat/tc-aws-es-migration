@@ -1,0 +1,19 @@
+{
+  "name": "tc-aws-es-migration",
+  "version": "1.0.0",
+  "description": "Topcoder Migration of DynamoDB Table Member Services to Elastic Search",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Atif Ali Siddiqui",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.340.0",
+    "elasticsearch": "^15.2.0",
+    "http-aws-es": "^6.0.0",
+    "bluebird": "^3.5.3",
+    "moment": "^2.22.2",
+    "styleme": "^2.5.4"
+  }
+}

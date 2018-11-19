@@ -1,0 +1,14 @@
+{
+    "dev": {
+        "esHost": "",
+        "esIndex": "members5",
+        "esType": "profile",
+        "esTraitType": "profiletrait"
+    },
+    "prod": {
+        "esHost": "",
+        "esIndex": "members5",
+        "esType": "profile",
+        "esTraitType": "profiletrait"
+    }
+}
