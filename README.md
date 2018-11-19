@@ -46,9 +46,16 @@ TC AWS Dynamo to ES Migtrator
 ```
 git clone -b master https://github.com/urwithat/tc-aws-es-migration.git
 ```
+```
+git pull origin master
+```
 - Go to folder
 ```
 cd tc-aws-es-migration/
+```
+- Add your AWS accessKeyId, secretAccessKey & ES Configuration
+```
+aws-dev-config.json, aws-prod-config.json, & aws-es-config.json
 ```
 - run the application
 ```
