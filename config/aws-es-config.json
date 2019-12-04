@@ -1,0 +1,24 @@
+{
+    "dev": {
+        "esHost": "",
+        "esMemberIndices": "members-2019-12",
+        "esMemberMappings": "profiles",
+        "esMemberTraitsMappings": "profiletraits",
+        "esMemberSkillsIndices": "memberskills-2019-12",
+        "esMemberSkillsMappings": "skills",
+        "esMemberStatsIndices": "memberstats-2019-12",
+        "esMemberStatsMappings": "stats",
+        "tcApiUrl": "https://api.topcoder-dev.com"
+    },
+    "prod": {
+        "esHost": "",
+        "esMemberIndices": "members-2019-12",
+        "esMemberMappings": "profiles",
+        "esMemberTraitsMappings": "profiletraits",
+        "esMemberSkillsIndices": "memberskills-2019-12",
+        "esMemberSkillsMappings": "skills",
+        "esMemberStatsIndices": "memberstats-2019-12",
+        "esMemberStatsMappings": "stats",
+        "tcApiUrl": "https://api.topcoder.com"
+    }
+}
