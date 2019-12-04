@@ -67,9 +67,8 @@ var profileTraitLastEvaluatedKeyArray = [null,null]
 // Prod :: Completed - (3|3) (413090|1650186) -->> Took :: 0 day(s), 9 hour(s), 10 mmin(s), 57 sec(s)
 var countProfile = [];
 var checkProfile = [];
-var limitProfile = 50;
-//var profileLastEvaluatedKeyArray = [null,null,null,null]
-var profileLastEvaluatedKeyArray = [null,null,null,null,null,null,null,null,null,null,null,null]
+var limitProfile = 2;
+var profileLastEvaluatedKeyArray = [null]
 
 var startTime;
 var fullFilePath;
@@ -164,9 +163,11 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
         }
     }).catch(function(err) {
         console.log(err);
-        console.log(styleme.style(" Last Evaluated Key :: " + profileTraitLastEvaluatedKeyArray, colorScheme))
-        console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile Trait - Failed - Invoke again", colorScheme))
-        scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath)
+        setTimeout(function() {
+            //console.log(styleme.style(" Last Evaluated Key :: " + profileTraitLastEvaluatedKeyArray, colorScheme))
+            console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile Trait - Failed - Invoke again", colorScheme))
+            scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath)
+        }, 5000);
     });
 }
 
@@ -276,9 +277,11 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
         }
     } catch(err) {
         console.log(err);
-        console.log(styleme.style(" Last Evaluated Key :: " + profileLastEvaluatedKeyArray, colorScheme))
-        console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile - Failed - Invoke again", colorScheme))
-        scanMemberProfile(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath)
+        setTimeout(function() {
+            //console.log(styleme.style(" Last Evaluated Key :: " + profileLastEvaluatedKeyArray, colorScheme))
+            console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile - Failed - Invoke again", colorScheme))
+            scanMemberProfile(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath)
+        }, 5000);
     }
 }
 
