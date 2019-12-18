@@ -142,7 +142,7 @@ var obj = {
         }, function callback(err, response, status){
             if(err) {
                 console.log(" -------- Elastic Search Error - Reinvoke")
-                console.log(err)
+                // console.log(err)
                 obj.addToIndex(elasticClient, id, data, index, type)
             }
         });
