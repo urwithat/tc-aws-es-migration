@@ -310,14 +310,14 @@ async function kickStart(args) {
             util.durationTaken("Stats Migration - Prod - Public - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
             var totalItemCount = await getTotalItemCount('MemberStats')
             console.log("totalItemCount :: " + totalItemCount)
-            await getMemberStatsPublic(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath)
+            await getMemberStatsPublic(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath, totalItemCount)
         } else if(args.indexOf("private") > -1) {
             fullFilePath = "./userid-completed/stats-prod.json"
             userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
             util.durationTaken("Stats Migration - Prod - Private - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
             var totalItemCount = await getTotalItemCount('MemberStats_Private')
             console.log("totalItemCount :: " + totalItemCount)
-            await getMemberStatsPrivate(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath)
+            await getMemberStatsPrivate(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath, totalItemCount)
         }
     }
     
