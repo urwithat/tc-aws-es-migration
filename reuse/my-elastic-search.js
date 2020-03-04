@@ -141,9 +141,16 @@ var obj = {
             body: data
         }, function callback(err, response, status){
             if(err) {
-                console.log(" -------- Elastic Search Error - Reinvoke")
-                // console.log(err)
-                obj.addToIndex(elasticClient, id, data, index, type)
+                //console.log(err)
+                if (err.message.indexOf('mapper_parsing_exception') === -1) {
+                    console.log(" -------- Elastic Search Error - Reinvoke")
+                    setTimeout(function () {
+                        console.log(" End   :: Timeout =========================================================== ");
+                        obj.addToIndex(elasticClient, id, data, index, type)
+                    }, 5000);
+                } else {
+                    console.log(" -------- Elastic Search Error - Skip, Parsing exception")
+                }
             }
         });
     },

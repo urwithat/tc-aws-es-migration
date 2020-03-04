@@ -133,9 +133,13 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
             }
         }
     } catch(err) {
+        console.log(" Start :: Timeout =========================================================== ");
         console.log(err);
         console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile - Failed - Invoke again", colorScheme))
-        scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
+        setTimeout(function () {
+            console.log(" End   :: Timeout =========================================================== ");
+            scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
+        }, 5000);
     }
 }
 
@@ -216,9 +220,13 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
             }
         }
     } catch(err) {
+        console.log(" Start :: Timeout =========================================================== ");
         console.log(err);
         console.log(styleme.style("(" + segment + "|" + (totalSegments-1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Profile - Failed - Invoke again", colorScheme))
-        scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
+        setTimeout(function () {
+            console.log(" End   :: Timeout =========================================================== ");
+            scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
+        }, 5000);
     }
 }
 
