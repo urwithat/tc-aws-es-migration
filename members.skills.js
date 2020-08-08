@@ -8,6 +8,7 @@ var request = require('request');
 
 var myElasticSearch = require('./reuse/my-elastic-search');
 var util = require('./reuse/util');
+var loader = require('./loader');
 
 var esConfig = JSON.parse(fs.readFileSync("./config/aws-es-config.json"));
 
@@ -83,7 +84,6 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
   try {
     const membersAggregatedSkills = await dynamoDBDocC.scan(memberAggregatedSkillsParams).promise();
     if (membersAggregatedSkills != null) {
-      console.log(styleme.style("(" + segment + "|" + (totalSegments - 1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - LastEvaluatedKey ------->> " + JSON.stringify(lastEvaluatedKey), colorScheme))
       for (let masIndex = 0; masIndex < membersAggregatedSkills.Items.length; masIndex++) {
         var memberAggregatedSkills
         try {
@@ -158,26 +158,25 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
             if (tagDetails) {
               memberAggregatedSkills[attributename].tagName = tagDetails.name
             } else {
-              console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Removing Invalid Tag Name :: " + attributename + " For UserId :: " + membersAggregatedSkills.Items[masIndex].userId, colorScheme))
               delete memberAggregatedSkills[attributename];
             }
           }
-          membersAggregatedSkills.Items[masIndex].skills = memberAggregatedSkills
 
+          membersAggregatedSkills.Items[masIndex].skills = memberAggregatedSkills
           myElasticSearch.addToIndex(elasticClient, membersAggregatedSkills.Items[masIndex].userId, util.cleanse(membersAggregatedSkills.Items[masIndex]), esMemberSkillsIndices, esMemberSkillsMappings);
           util.add(userIdsCompleted, membersAggregatedSkills.Items[masIndex].userId)
-          
-          console.log(styleme.style("[" + Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countSkills[segment] + "|" + countSkills.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Skills --> UserID == " + membersAggregatedSkills.Items[masIndex].userId, colorScheme))
+          loader.display(loader.MESSAGES.ONLINE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         } else {
-          console.log(styleme.style("[" + Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countSkills[segment] + "|" + countSkills.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Skiped Member Profile --> UserID == " + membersAggregatedSkills.Items[masIndex].userId, colorScheme))
+          loader.display(loader.MESSAGES.SKIP, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (membersAggregatedSkills.LastEvaluatedKey) {
         skillsLastEvaluatedKeyArray[segment] = JSON.stringify(membersAggregatedSkills.LastEvaluatedKey);
-        console.log(styleme.style("[" + Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countSkills[segment] + "|" + countSkills.reduce(function (a, b) { return a + b; }, 0) + ") -->>" + " Last Evaluated Key :: " + skillsLastEvaluatedKeyArray, colorScheme))
+
+        loader.display(loader.MESSAGES.NEXT, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         scanMemberSkills(membersAggregatedSkills.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
       } else {
-        util.durationTaken("Completed - (" + segment + "|" + (totalSegments - 1) + ") (" + countSkills[segment] + "|" + countSkills.reduce(function (a, b) { return a + b; }, 0) + ") -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
+        loader.display(loader.MESSAGES.COMPLETED, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         checkSkills[segment] = true;
         if (checkSkills.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -192,9 +191,10 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
       }
     }
   } catch (err) {
-    console.log(" Start :: Timeout =========================================================== ");
+    loader.display(loader.MESSAGES.OFFLINE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      console.log(" End   :: Timeout =========================================================== ");
+      loader.display(loader.MESSAGES.REVOKE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+
       scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -274,7 +274,7 @@ async function kickStart(args) {
     fullFilePath = "./userid-completed/skills-dev.json"
     userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
     util.durationTaken("Skills Migration - Dev - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
-    
+
     var totalItemCount = await getTotalItemCount('MemberAggregatedSkills')
     console.log("totalItemCount :: " + totalItemCount)
 

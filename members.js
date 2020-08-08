@@ -4,10 +4,10 @@ var fs = require("fs");
 var moment = require('moment');
 var styleme = require('styleme')
 var Promise = require('bluebird');
-//styleme.extend()
 
 var myElasticSearch = require('./reuse/my-elastic-search');
 var util = require('./reuse/util');
+var loader = require('./loader');
 
 var esConfig = JSON.parse(fs.readFileSync("./config/aws-es-config.json"));
 
@@ -94,7 +94,6 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
   try {
     const memberProfileTraits = await dynamoDBDocC.scan(memberProfileTraitsParams).promise();
     if (memberProfileTraits != null) {
-      console.log(styleme.style("(" + segment + "|" + (totalSegments - 1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - LastEvaluatedKey ------->> " + JSON.stringify(lastEvaluatedKey), colorScheme))
       for (let mptIndex = 0; mptIndex < memberProfileTraits.Items.length; mptIndex++) {
         const memberProfileTrait = memberProfileTraits.Items[mptIndex];
         countProfileTrait[segment] = countProfileTrait[segment] + 1;
@@ -144,17 +143,17 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
           }
           myElasticSearch.addToIndex(elasticClient, memberProfileTrait.userId + memberProfileTrait.traitId, util.cleanse(memberProfileTrait), esMemberIndices, esMemberTraitsMappings);
           util.add(userIdsCompleted, memberProfileTrait.userId + memberProfileTrait.traitId)
-          console.log(styleme.style("[" + Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfileTrait[segment] + "|" + countProfileTrait.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Find Member Profile Traits --> UserID == " + memberProfileTrait.userId + memberProfileTrait.traitId, colorScheme))
+          loader.display(loader.MESSAGES.ONLINE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         } else {
-          console.log(styleme.style("[" + Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfileTrait[segment] + "|" + countProfileTrait.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Skiped Member Profile Traits --> UserID == " + memberProfileTrait.userId + memberProfileTrait.traitId, colorScheme))
+          loader.display(loader.MESSAGES.SKIP, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (memberProfileTraits.LastEvaluatedKey) {
         profileTraitLastEvaluatedKeyArray[segment] = JSON.stringify(memberProfileTraits.LastEvaluatedKey);
-        console.log(styleme.style("[" + Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfileTrait[segment] + "|" + countProfileTrait.reduce(function (a, b) { return a + b; }, 0) + ") -->>" + " Last Evaluated Key :: " + profileTraitLastEvaluatedKeyArray, colorScheme))
+        loader.display(loader.MESSAGES.NEXT, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         scanMemberProfileTraits(memberProfileTraits.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount);
       } else {
-        util.durationTaken("Completed - (" + segment + "|" + (totalSegments - 1) + ") (" + countProfileTrait[segment] + "|" + countProfileTrait.reduce(function (a, b) { return a + b; }, 0) + ") -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
+        loader.display(loader.MESSAGES.COMPLETED, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         checkProfileTrait[segment] = true;
         if (checkProfileTrait.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -169,9 +168,9 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
       }
     }
   } catch (err) {
-    console.log(" Start :: Timeout =========================================================== ");
+    loader.display(loader.MESSAGES.OFFLINE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      console.log(" End   :: Timeout =========================================================== ");
+      loader.display(loader.MESSAGES.REVOKE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
       scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -189,7 +188,6 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
   try {
     const memberProfiles = await dynamoDBDocC.scan(memberProfilesParams).promise();
     if (memberProfiles != null) {
-      console.log(styleme.style("(" + segment + "|" + (totalSegments - 1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - LastEvaluatedKey ------->> " + JSON.stringify(lastEvaluatedKey), colorScheme))
       for (let mpIndex = 0; mpIndex < memberProfiles.Items.length; mpIndex++) {
         const memberProfile = memberProfiles.Items[mpIndex];
         countProfile[segment] = countProfile[segment] + 1;
@@ -233,19 +231,18 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
             }
           }
           myElasticSearch.addToIndex(elasticClient, memberProfile.userId, util.cleanse(memberProfile), esMemberIndices, esMemberMappings);
-
           util.add(userIdsCompleted, memberProfile.userId)
-          console.log(styleme.style("[" + Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfile[segment] + "|" + countProfile.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Find Member Profile --> UserID == " + memberProfile.userId, colorScheme))
+          loader.display(loader.MESSAGES.ONLINE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         } else {
-          console.log(styleme.style("[" + Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfile[segment] + "|" + countProfile.reduce(function (a, b) { return a + b; }, 0) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Skiped Member Profile --> UserID == " + memberProfile.userId, colorScheme))
+          loader.display(loader.MESSAGES.SKIP, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (memberProfiles.LastEvaluatedKey) {
         profileLastEvaluatedKeyArray[segment] = JSON.stringify(memberProfiles.LastEvaluatedKey);
-        console.log(styleme.style("[" + Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)) + "%] (" + segment + "|" + (totalSegments - 1) + ") (" + countProfile[segment] + "|" + countProfile.reduce(function (a, b) { return a + b; }, 0) + ") -->>" + " Last Evaluated Key :: " + profileLastEvaluatedKeyArray, colorScheme))
+        loader.display(loader.MESSAGES.NEXT, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         scanMemberProfile(memberProfiles.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
       } else {
-        util.durationTaken("Completed - (" + segment + "|" + (totalSegments - 1) + ") (" + countProfile[segment] + "|" + countProfile.reduce(function (a, b) { return a + b; }, 0) + ") -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
+        loader.display(loader.MESSAGES.COMPLETED, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         checkProfile[segment] = true;
         if (checkProfile.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -260,9 +257,9 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
       }
     }
   } catch (err) {
-    console.log(" Start :: Timeout =========================================================== ");
+    loader.display(loader.MESSAGES.OFFLINE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      console.log(" End   :: Timeout =========================================================== ");
+      loader.display(loader.MESSAGES.REVOKE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
       scanMemberProfile(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
