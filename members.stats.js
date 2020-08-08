@@ -94,7 +94,7 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
           if (membersStatsPublic.Items[masIndex].hasOwnProperty("COPILOT")) {
             membersStatsPublic.Items[masIndex].COPILOT = JSON.parse(membersStatsPublic.Items[masIndex].COPILOT)
           }
-          myElasticSxearch.addToIndex(elasticClient, setPublicId, util.cleanse(membersStatsPublic.Items[masIndex]), esMemberStatsPublicIndices, esMemberStatsPublicMappings);
+          myElasticSearch.addToIndex(elasticClient, setPublicId, util.cleanse(membersStatsPublic.Items[masIndex]), esMemberStatsPublicIndices, esMemberStatsPublicMappings);
           util.add(userIdsCompleted, setPublicId)
           loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
         } else {
