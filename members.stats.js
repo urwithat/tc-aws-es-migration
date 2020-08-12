@@ -105,6 +105,7 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
           util.add(userIdsCompleted, setPublicId)
           loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
+          console.log(loader.MESSAGES.SKIP + " --> setPublicId == " +  setPublicId)
           loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
@@ -193,6 +194,7 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
           util.add(userIdsCompleted, setPrivateId)
           loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
+          console.log(loader.MESSAGES.SKIP + " --> setPrivateId == " +  setPrivateId)
           loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
