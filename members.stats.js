@@ -24,6 +24,8 @@ if (args.indexOf("dev") > -1) {
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
     requestTimeout : Infinity,
+    keepAlive: true,
+    sniffOnStart: false
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.dev.esMemberStatsIndices
@@ -36,6 +38,8 @@ if (args.indexOf("dev") > -1) {
   elasticClient = new elasticsearch.Client({
     host: esConfig.prod.esHost,
     requestTimeout : Infinity,
+    keepAlive: true,
+    sniffOnStart: false
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.prod.esMemberStatsIndices
@@ -48,6 +52,8 @@ if (args.indexOf("dev") > -1) {
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
     requestTimeout : Infinity,
+    keepAlive: true,
+    sniffOnStart: false
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.dev.esMemberStatsIndices
