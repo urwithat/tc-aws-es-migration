@@ -147,7 +147,7 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
         }
       }
       if (esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData);
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false);
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.ESUPDATED, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
@@ -247,7 +247,7 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false)
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.ESUPDATED, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {

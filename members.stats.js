@@ -58,7 +58,7 @@ var checkStats = [];
 // Prod  - private - (TT 00:00:00:13:202 / ETC 00:00:00:00:000)
 // Dev - public - (TT 00:00:00:30:954 / ETC 00:00:30:49:257)
 // Dev - private - (TT 00:00:00:06:282 / ETC 00:00:00:00:000)
-var limitStats = 500;
+var limitStats = 20000;
 var statsLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var startTime;
@@ -110,7 +110,7 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false)
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.ESUPDATED, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
@@ -199,7 +199,7 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false)
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.NEXT, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {

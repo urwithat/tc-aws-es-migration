@@ -160,8 +160,11 @@ var obj = {
     }
   },
 
-  bulkToIndex: async function (elasticClient, data) {
+  bulkToIndex: async function (elasticClient, data, rerun) {
     try {
+      if (rerun) { 
+        console.log("Elastic Search Rerun :: Adding data again")
+      }
       const response = await elasticClient.bulk({
         body: data,
         refresh: true
@@ -172,9 +175,13 @@ var obj = {
         console.log("Elastic Search Error :: Handle Manually :: " + err.message + " :: path - " + err.path)
         return { errors: false }
       } else if (err.message.indexOf('Request Timeout') > -1) {
-        console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
+        if (rerun) { 
+          console.log("Elastic Search Rerun Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
+        } else {
+          console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
+        }
         setTimeout(function () {
-          obj.bulkToIndex(elasticClient, data)
+          obj.bulkToIndex(elasticClient, data, true)
         }, 5000);
         return { errors: false }
       } else {
