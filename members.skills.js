@@ -170,7 +170,7 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false);
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false, 1);
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.ESUPDATED, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {

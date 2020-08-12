@@ -110,7 +110,7 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false)
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false, 1)
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.ESUPDATED, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
@@ -199,7 +199,7 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
         }
       }
       if(esData.length > 0) {
-        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false)
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData, false, 1)
         if (esResponse.errors == false) {
           loader.display(loader.MESSAGES.NEXT, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {

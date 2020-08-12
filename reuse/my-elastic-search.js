@@ -160,10 +160,13 @@ var obj = {
     }
   },
 
-  bulkToIndex: async function (elasticClient, data, rerun) {
+  bulkToIndex: async function (elasticClient, data, rerun, count) {
     try {
       if (rerun) { 
         console.log("Elastic Search Rerun :: Adding data again")
+        count += 1
+      } else {
+        count = 1
       }
       const response = await elasticClient.bulk({
         body: data,
@@ -172,16 +175,12 @@ var obj = {
       return response
     } catch (err) {
       if (err.message.indexOf('mapper_parsing_exception') > -1) {
-        console.log("Elastic Search Error :: Handle Manually :: " + err.message + " :: path - " + err.path)
+        console.log("Elastic Search Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
         return { errors: false }
       } else if (err.message.indexOf('Request Timeout') > -1) {
-        if (rerun) { 
-          console.log("Elastic Search Rerun Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
-        } else {
-          console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
-        }
+        console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
         setTimeout(function () {
-          obj.bulkToIndex(elasticClient, data, true)
+          obj.bulkToIndex(elasticClient, data, true, count)
         }, 5000);
         return { errors: false }
       } else {
