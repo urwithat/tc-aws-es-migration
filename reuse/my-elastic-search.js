@@ -145,11 +145,13 @@ var obj = {
     } catch (err) {
       if (err.message.indexOf('mapper_parsing_exception') > -1) {
         console.log("Elastic Search Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
+        return { errors: false }
       } else if (err.message.indexOf('Request Timeout') > -1) {
         console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
         setTimeout(function () {
           obj.addToIndex(elasticClient, id, data, index, type)
         }, 5000);
+        return { errors: false }
       } else {
         console.log("Elastic Search Error :: Kill process")
         console.log(err);
@@ -168,11 +170,13 @@ var obj = {
     } catch (err) {
       if (err.message.indexOf('mapper_parsing_exception') > -1) {
         console.log("Elastic Search Error :: Handle Manually :: " + err.message + " :: path - " + err.path)
+        return { errors: false }
       } else if (err.message.indexOf('Request Timeout') > -1) {
         console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
         setTimeout(function () {
           obj.bulkToIndex(elasticClient, data)
         }, 5000);
+        return { errors: false }
       } else {
         console.log("Elastic Search Error :: Kill process")
         console.log(err);
