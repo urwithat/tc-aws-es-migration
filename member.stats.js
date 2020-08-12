@@ -52,10 +52,6 @@ if (args.indexOf("dev") > -1) {
   esMemberStatsMappings = esConfig.dev.esMemberStatsMappings
 }
 
-var countStats = [];
-var checkStats = [];
-var limitStats = 10;
-
 var startTime;
 var fullFilePath;
 var userIdsCompleted;
@@ -101,14 +97,13 @@ async function queryMemberStatsPublic(colorScheme, esMemberStatsPublicIndices, e
           if (membersStatsPublic.Items[masIndex].hasOwnProperty("COPILOT")) {
             membersStatsPublic.Items[masIndex].COPILOT = JSON.parse(membersStatsPublic.Items[masIndex].COPILOT)
           }
-
-          // console.log(util.cleanse(membersStatsPublic.Items[masIndex]))
-
-          myElasticSearch.addToIndex(elasticClient, setPublicId, util.cleanse(membersStatsPublic.Items[masIndex]), esMemberStatsPublicIndices, esMemberStatsPublicMappings);
-
-          // util.add(userIdsCompleted, setPublicId)
-
-          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Stats --> userGroupID == " + setPublicId, colorScheme))
+          let esResponse = await myElasticSearch.addToIndex(elasticClient, setPublicId, util.cleanse(membersStatsPublic.Items[masIndex]), esMemberStatsPublicIndices, esMemberStatsPublicMappings);
+          if (esResponse) {
+            util.add(userIdsCompleted, setPublicId)
+            console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Stats --> userGroupID == " + setPublicId, colorScheme))
+          } else {
+            console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Error Member Stats --> userGroupID == " + setPublicId, colorScheme))
+          }
         } else {
           console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Skiped Member Profile --> userGroupID == " + setPublicId, colorScheme))
         }
@@ -168,14 +163,13 @@ async function queryMemberStatsPrivate(colorScheme, esMemberStatsPrivateIndices,
           } else {
             membersStatsPrivate.Items[masIndex].COPILOT = {}
           }
-
-          // console.log(util.cleanse(membersStatsPrivate.Items[masIndex]))
-
-          myElasticSearch.addToIndex(elasticClient, setPrivateId, util.cleanse(membersStatsPrivate.Items[masIndex]), esMemberStatsPrivateIndices, esMemberStatsPrivateMappings);
-
-          // util.add(userIdsCompleted, setPrivateId)
-
-          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Stats --> userGroupID == " + setPrivateId, colorScheme))
+          let esResponse = await myElasticSearch.addToIndex(elasticClient, setPrivateId, util.cleanse(membersStatsPrivate.Items[masIndex]), esMemberStatsPrivateIndices, esMemberStatsPrivateMappings);
+          if (esResponse) {
+            util.add(userIdsCompleted, setPrivateId)
+            console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Stats --> userGroupID == " + setPrivateId, colorScheme))
+          } else {
+            console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Error Member Stats --> userGroupID == " + setPrivateId, colorScheme))
+          }
         } else {
           console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Skiped Member Profile --> userGroupID == " + setPrivateId, colorScheme))
         }
@@ -244,6 +238,6 @@ async function kickStart(args) {
     node member.stats.js dev public 40153800
     node member.stats.js dev private 8547899
     node member.stats.js prod public 40154303
-    node member.stats.js prod private 40154303
+    node member.stats.js prod private 23016887
 */
 kickStart(args);

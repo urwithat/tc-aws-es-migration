@@ -8,7 +8,7 @@ var request = require('request');
 
 var myElasticSearch = require('./reuse/my-elastic-search');
 var util = require('./reuse/util');
-var loader = require('./loader');
+var loader = require('./reuse/loader');
 
 var esConfig = JSON.parse(fs.readFileSync("./config/aws-es-config.json"));
 
@@ -58,14 +58,10 @@ if (args.indexOf("dev") > -1) {
 var countSkills = [];
 var checkSkills = [];
 
-// Prod - 
-var limitSkills = 10;
-var skillsLastEvaluatedKeyArray = [null, null, null]
-// var skillsLastEvaluatedKeyArray = ["stop","stop",{"userId":23150462}]
-
-// Dev - 
-// var limitSkills = 20;
-// var skillsLastEvaluatedKeyArray = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+// Prod - (TT 00:00:00:30:815 / ETC 00:06:55:11:340)
+// Dev  - (TT 00:00:00:30:130 / ETC 00:02:30:30:409)
+var limitSkills = 500;
+var skillsLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var startTime;
 var fullFilePath;
@@ -84,6 +80,7 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
   try {
     const membersAggregatedSkills = await dynamoDBDocC.scan(memberAggregatedSkillsParams).promise();
     if (membersAggregatedSkills != null) {
+      var esData = []
       for (let masIndex = 0; masIndex < membersAggregatedSkills.Items.length; masIndex++) {
         var memberAggregatedSkills
         try {
@@ -161,22 +158,32 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
               delete memberAggregatedSkills[attributename];
             }
           }
-
           membersAggregatedSkills.Items[masIndex].skills = memberAggregatedSkills
-          myElasticSearch.addToIndex(elasticClient, membersAggregatedSkills.Items[masIndex].userId, util.cleanse(membersAggregatedSkills.Items[masIndex]), esMemberSkillsIndices, esMemberSkillsMappings);
+
+          esData.push({ index: { _index: esMemberSkillsIndices, _type: esMemberSkillsMappings, _id: membersAggregatedSkills.Items[masIndex].userId } })
+          esData.push(util.cleanse(membersAggregatedSkills.Items[masIndex]))
+
           util.add(userIdsCompleted, membersAggregatedSkills.Items[masIndex].userId)
-          loader.display(loader.MESSAGES.ONLINE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.ONLINE, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
-          loader.display(loader.MESSAGES.SKIP, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.SKIP, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        }
+      }
+      if(esData.length > 0) {
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData);
+        if (esResponse.errors == false) {
+          loader.display(loader.MESSAGES.ESUPDATED, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        } else {
+          loader.display(loader.MESSAGES.ESOFFLINE, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (membersAggregatedSkills.LastEvaluatedKey) {
-        skillsLastEvaluatedKeyArray[segment] = JSON.stringify(membersAggregatedSkills.LastEvaluatedKey);
-
-        loader.display(loader.MESSAGES.NEXT, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        skillsLastEvaluatedKeyArray[segment].key = membersAggregatedSkills.LastEvaluatedKey;
+        skillsLastEvaluatedKeyArray[segment].count = countSkills[segment];
         scanMemberSkills(membersAggregatedSkills.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
       } else {
-        loader.display(loader.MESSAGES.COMPLETED, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        // skillsLastEvaluatedKeyArray[segment].count = countSkills[segment];
+        loader.display(loader.MESSAGES.COMPLETED, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         checkSkills[segment] = true;
         if (checkSkills.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -191,9 +198,9 @@ async function scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorS
       }
     }
   } catch (err) {
-    loader.display(loader.MESSAGES.OFFLINE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+    loader.display(loader.MESSAGES.DBOFFLINE, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      loader.display(loader.MESSAGES.REVOKE, skillsLastEvaluatedKeyArray[segment], Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+      loader.display(loader.MESSAGES.REVOKE, skillsLastEvaluatedKeyArray, totalItemCount, countSkills.reduce(function (a, b) { return a + b; }, 0), Number((((countSkills.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countSkills[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
 
       scanMemberSkills(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
     }, 5000);
@@ -221,25 +228,13 @@ async function cleanUp() {
   });
 }
 
-async function getTotalItemCount(tableName) {
-  try {
-    const totalItemCountParams = {
-      TableName: tableName
-    }
-    const totalItemCountData = await dynamoDB.describeTable(totalItemCountParams).promise()
-    return totalItemCountData.Table.ItemCount
-  } catch (ex) {
-    return 0
-  }
-}
-
 async function getMemberSkills(esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount) {
   return new Promise(function (resolve, reject) {
     for (var i = 0; i < skillsLastEvaluatedKeyArray.length; i++) {
       countSkills[i] = 0;
       checkSkills[i] = false;
       if (skillsLastEvaluatedKeyArray[i] != "stop") {
-        scanMemberSkills(skillsLastEvaluatedKeyArray[i], i, skillsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
+        scanMemberSkills(skillsLastEvaluatedKeyArray[i].key, i, skillsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberSkillsIndices, esMemberSkillsMappings, fullFilePath, totalItemCount)
       } else {
         console.log(styleme.style("(" + i + "|" + (skillsLastEvaluatedKeyArray.length - 1) + ") -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " Will not process as requested.", colorScheme[i % colorScheme.length]))
       }
@@ -275,7 +270,7 @@ async function kickStart(args) {
     userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
     util.durationTaken("Skills Migration - Dev - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
 
-    var totalItemCount = await getTotalItemCount('MemberAggregatedSkills')
+    var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberAggregatedSkills', skillsLastEvaluatedKeyArray)
     console.log("totalItemCount :: " + totalItemCount)
 
     await getMemberSkills(esConfig.dev.esMemberSkillsIndices, esConfig.dev.esMemberSkillsMappings, fullFilePath, totalItemCount)
@@ -284,7 +279,7 @@ async function kickStart(args) {
     userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
     util.durationTaken("Skills Migration - Prod - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
 
-    var totalItemCount = await getTotalItemCount('MemberAggregatedSkills')
+    var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberAggregatedSkills', skillsLastEvaluatedKeyArray)
     console.log("totalItemCount :: " + totalItemCount)
 
     await getMemberSkills(esConfig.prod.esMemberSkillsIndices, esConfig.prod.esMemberSkillsMappings, fullFilePath, totalItemCount)

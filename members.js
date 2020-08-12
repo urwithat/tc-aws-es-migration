@@ -7,7 +7,7 @@ var Promise = require('bluebird');
 
 var myElasticSearch = require('./reuse/my-elastic-search');
 var util = require('./reuse/util');
-var loader = require('./loader');
+var loader = require('./reuse/loader');
 
 var esConfig = JSON.parse(fs.readFileSync("./config/aws-es-config.json"));
 
@@ -25,6 +25,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
+    // log: 'trace'
   });
   esMemberIndices = esConfig.dev.esMemberIndices
   esMemberMappings = esConfig.dev.esMemberMappings
@@ -47,7 +48,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
-    //log: 'trace'
+    // log: 'trace'
   });
   esMemberIndices = esConfig.dev.esMemberIndices
   esMemberMappings = esConfig.dev.esMemberMappings
@@ -57,24 +58,18 @@ if (args.indexOf("dev") > -1) {
 var countProfileTrait = [];
 var checkProfileTrait = [];
 
-// Prod - 
-var limitProfileTrait = 3;
-var profileTraitLastEvaluatedKeyArray = [null, null]
-
-// Dev - Completed - (9|9) (109|689) -->> Took :: 0 day(s), 0 hour(s), 0 mmin(s), 5 sec(s)
-// var limitProfileTrait = 20;
-// var profileTraitLastEvaluatedKeyArray = [null, null, null, null, null, null, null, null, null, null]
+// Prod - (TT 00:00:00:30:588 / ETC 00:00:09:55:028)
+// Dev  - (TT 00:00:00:04:774 / ETC 00:00:00:00:000)
+var limitProfileTrait = 500;
+var profileTraitLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var countProfile = [];
 var checkProfile = [];
 
-// Prod - 
-var limitProfile = 3;
-var profileLastEvaluatedKeyArray = [null, null]
-
-// Dev - Completed - (5|9) (85218|846173) -->> Took :: 0 day(s), 2 hour(s), 0 mmin(s), 0 sec(s)
-// var limitProfile = 10;
-// var profileLastEvaluatedKeyArray = [null, null, null, null, null, null, null, null, null, null]
+// Prod - (TT 00:00:00:32:772 / ETC 00:00:37:06:029)
+// Dev  - (TT 00:00:00:32:837 / ETC 00:00:18:23:671)
+var limitProfile = 1000;
+var profileLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var startTime;
 var fullFilePath;
@@ -88,12 +83,14 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
     Limit: limitProfileTrait,
     ExclusiveStartKey: lastEvaluatedKey,
     Segment: segment,
-    TotalSegments: totalSegments
+    TotalSegments: totalSegments,
+    ConsistentRead: true,
   }
 
   try {
     const memberProfileTraits = await dynamoDBDocC.scan(memberProfileTraitsParams).promise();
     if (memberProfileTraits != null) {
+      var esData = []
       for (let mptIndex = 0; mptIndex < memberProfileTraits.Items.length; mptIndex++) {
         const memberProfileTrait = memberProfileTraits.Items[mptIndex];
         countProfileTrait[segment] = countProfileTrait[segment] + 1;
@@ -141,19 +138,28 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
               });
             }
           }
-          myElasticSearch.addToIndex(elasticClient, memberProfileTrait.userId + memberProfileTrait.traitId, util.cleanse(memberProfileTrait), esMemberIndices, esMemberTraitsMappings);
+          esData.push({ index: { _index: esMemberIndices, _type: esMemberTraitsMappings, _id: memberProfileTrait.userId + memberProfileTrait.traitId } })
+          esData.push(util.cleanse(memberProfileTrait))
           util.add(userIdsCompleted, memberProfileTrait.userId + memberProfileTrait.traitId)
-          loader.display(loader.MESSAGES.ONLINE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.ONLINE, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
-          loader.display(loader.MESSAGES.SKIP, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.SKIP, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        }
+      }
+      if (esData.length > 0) {
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData);
+        if (esResponse.errors == false) {
+          loader.display(loader.MESSAGES.ESUPDATED, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        } else {
+          loader.display(loader.MESSAGES.ESOFFLINE, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (memberProfileTraits.LastEvaluatedKey) {
-        profileTraitLastEvaluatedKeyArray[segment] = JSON.stringify(memberProfileTraits.LastEvaluatedKey);
-        loader.display(loader.MESSAGES.NEXT, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        profileTraitLastEvaluatedKeyArray[segment].key = memberProfileTraits.LastEvaluatedKey;
+        profileTraitLastEvaluatedKeyArray[segment].count = countProfileTrait[segment];
         scanMemberProfileTraits(memberProfileTraits.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount);
       } else {
-        loader.display(loader.MESSAGES.COMPLETED, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        loader.display(loader.MESSAGES.COMPLETED, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         checkProfileTrait[segment] = true;
         if (checkProfileTrait.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -168,9 +174,9 @@ async function scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments,
       }
     }
   } catch (err) {
-    loader.display(loader.MESSAGES.OFFLINE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+    loader.display(loader.MESSAGES.DBOFFLINE, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      loader.display(loader.MESSAGES.REVOKE, profileTraitLastEvaluatedKeyArray[segment], Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+      loader.display(loader.MESSAGES.REVOKE, profileTraitLastEvaluatedKeyArray, totalItemCount, countProfileTrait.reduce(function (a, b) { return a + b; }, 0), Number((((countProfileTrait.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfileTrait[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
       scanMemberProfileTraits(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -184,10 +190,10 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
     Segment: segment,
     TotalSegments: totalSegments
   }
-
   try {
     const memberProfiles = await dynamoDBDocC.scan(memberProfilesParams).promise();
     if (memberProfiles != null) {
+      var esData = []
       for (let mpIndex = 0; mpIndex < memberProfiles.Items.length; mpIndex++) {
         const memberProfile = memberProfiles.Items[mpIndex];
         countProfile[segment] = countProfile[segment] + 1;
@@ -230,19 +236,30 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
               lastName: memberProfile.lastName,
             }
           }
-          myElasticSearch.addToIndex(elasticClient, memberProfile.userId, util.cleanse(memberProfile), esMemberIndices, esMemberMappings);
+
+          esData.push({ index: { _index: esMemberIndices, _type: esMemberMappings, _id: memberProfile.userId } })
+          esData.push(util.cleanse(memberProfile))
+          
           util.add(userIdsCompleted, memberProfile.userId)
-          loader.display(loader.MESSAGES.ONLINE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.ONLINE, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
-          loader.display(loader.MESSAGES.SKIP, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.SKIP, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        }
+      }
+      if(esData.length > 0) {
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        if (esResponse.errors == false) {
+          loader.display(loader.MESSAGES.ESUPDATED, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        } else {
+          loader.display(loader.MESSAGES.ESOFFLINE, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
       if (memberProfiles.LastEvaluatedKey) {
-        profileLastEvaluatedKeyArray[segment] = JSON.stringify(memberProfiles.LastEvaluatedKey);
-        loader.display(loader.MESSAGES.NEXT, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        profileLastEvaluatedKeyArray[segment].key = memberProfiles.LastEvaluatedKey;
+        profileLastEvaluatedKeyArray[segment].count = countProfile[segment];
         scanMemberProfile(memberProfiles.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
       } else {
-        loader.display(loader.MESSAGES.COMPLETED, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        loader.display(loader.MESSAGES.COMPLETED, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         checkProfile[segment] = true;
         if (checkProfile.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -257,9 +274,10 @@ async function scanMemberProfile(lastEvaluatedKey, segment, totalSegments, color
       }
     }
   } catch (err) {
-    loader.display(loader.MESSAGES.OFFLINE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+    // console.log(err)
+    loader.display(loader.MESSAGES.DBOFFLINE, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      loader.display(loader.MESSAGES.REVOKE, profileLastEvaluatedKeyArray[segment], Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+      loader.display(loader.MESSAGES.REVOKE, profileLastEvaluatedKeyArray, totalItemCount, countProfile.reduce(function (a, b) { return a + b; }, 0), Number((((countProfile.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countProfile[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
       scanMemberProfile(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -286,36 +304,23 @@ async function cleanUp() {
   });
 }
 
-async function getTotalItemCount(tableName) {
-  try {
-    const totalItemCountParams = {
-      TableName: tableName
-    }
-    const totalItemCountData = await dynamoDB.describeTable(totalItemCountParams).promise()
-    return totalItemCountData.Table.ItemCount
-  } catch (ex) {
-    return 0
-  }
-}
-
 async function getMemberProfile(esMemberIndices, esMemberMappings, fullFilePath, totalItemCount) {
   return new Promise(function (resolve, reject) {
     for (var i = 0; i < profileLastEvaluatedKeyArray.length; i++) {
       countProfile[i] = 0;
       checkProfile[i] = false;
-      scanMemberProfile(profileLastEvaluatedKeyArray[i], i, profileLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
+      scanMemberProfile(profileLastEvaluatedKeyArray[i].key, i, profileLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberIndices, esMemberMappings, fullFilePath, totalItemCount)
     }
     resolve(true);
   });
 }
-
 
 async function getMemberProfileTraits(esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount) {
   return new Promise(function (resolve, reject) {
     for (var i = 0; i < profileTraitLastEvaluatedKeyArray.length; i++) {
       countProfileTrait[i] = 0;
       checkProfileTrait[i] = false;
-      scanMemberProfileTraits(profileTraitLastEvaluatedKeyArray[i], i, profileTraitLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount)
+      scanMemberProfileTraits(profileTraitLastEvaluatedKeyArray[i].key, i, profileTraitLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberIndices, esMemberTraitsMappings, fullFilePath, totalItemCount)
     }
     resolve(true);
   });
@@ -332,9 +337,7 @@ async function kickStart(args) {
   }
 
   if (args.indexOf("profile") > -1) {
-    var totalItemCount = await getTotalItemCount('MemberProfile')
-    console.log("totalItemCount :: " + totalItemCount)
-
+    var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberProfile', profileLastEvaluatedKeyArray)
     if (args.indexOf("dev") > -1) {
       fullFilePath = "./userid-completed/profile-dev.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
@@ -347,9 +350,7 @@ async function kickStart(args) {
       await getMemberProfile(esConfig.prod.esMemberIndices, esConfig.prod.esMemberMappings, fullFilePath, totalItemCount)
     }
   } else if (args.indexOf("profiletraits") > -1) {
-    var totalItemCount = await getTotalItemCount('MemberProfileTrait')
-    console.log("totalItemCount :: " + totalItemCount)
-
+    var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberProfileTrait', profileTraitLastEvaluatedKeyArray)
     if (args.indexOf("dev") > -1) {
       fullFilePath = "./userid-completed/profile-trait-dev.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));

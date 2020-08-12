@@ -50,8 +50,6 @@ if (args.indexOf("dev") > -1) {
   tcApiUrl = esConfig.dev.tcApiUrl
 }
 
-var limitSkills = 10;
-//var skillsLastEvaluatedKeyArray = [{"userId":22629283}]
 var startTime;
 var allTags;
 var colorScheme = "bla,bre";
@@ -72,7 +70,6 @@ async function scanMemberSkills(userId, esMemberSkillsIndices, esMemberSkillsMap
     const membersAggregatedSkills = await dynamoDBDocC.query(memberAggregatedSkillsParams).promise();
     if (membersAggregatedSkills != null) {
       for (let masIndex = 0; masIndex < membersAggregatedSkills.Items.length; masIndex++) {
-
         // Cleanup Members Aggregated Skills, remove `USER_ENTERED`
         var memberAggregatedSkills
         try {
@@ -150,10 +147,12 @@ async function scanMemberSkills(userId, esMemberSkillsIndices, esMemberSkillsMap
           }
         }
         membersAggregatedSkills.Items[masIndex].skills = memberAggregatedSkills2
-
-        myElasticSearch.addToIndex(elasticClient, membersAggregatedSkills.Items[masIndex].userId, util.cleanse(membersAggregatedSkills.Items[masIndex]), esMemberSkillsIndices, esMemberSkillsMappings);
-
-        console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Skills --> UserID == " + membersAggregatedSkills.Items[masIndex].userId, colorScheme))
+        let esResponse = await myElasticSearch.addToIndex(elasticClient, membersAggregatedSkills.Items[masIndex].userId, util.cleanse(membersAggregatedSkills.Items[masIndex]), esMemberSkillsIndices, esMemberSkillsMappings);
+        if (esResponse) {
+          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Found Member Skills --> UserID == " + membersAggregatedSkills.Items[masIndex].userId + ", handleLower == " + membersAggregatedSkills.Items[masIndex].handleLower, colorScheme))
+        } else {
+          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY HH:mm:ss") + " - Error Member Skills --> UserID == " + membersAggregatedSkills.Items[masIndex].userId + ", handleLower == " + membersAggregatedSkills.Items[masIndex].handleLower, colorScheme))
+        }
       }
     }
   } catch (err) {
@@ -176,7 +175,6 @@ async function getAllTags() {
 
 async function kickStart(args) {
   startTime = moment().format("DD-MM-YYYY HH:mm:ss");
-
   if (args.indexOf("dev") > -1) {
     util.durationTaken("Skills Migration - Dev - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
     await scanMemberSkills(args[1], esConfig.dev.esMemberSkillsIndices, esConfig.dev.esMemberSkillsMappings)
@@ -189,9 +187,8 @@ async function kickStart(args) {
 
 /*
     Options - dev/prod
-    
     node member.skills.js dev 40154303
-    node member.skills.js prod 40154303
+    node member.skills.js prod 40672021
 */
 getAllTags().then(function (data) {
   console.log("Got Skills / Tags Data");

@@ -1,6 +1,6 @@
 var AWS = require("aws-sdk");
 var elasticsearch = require('elasticsearch');
-var elasticDeleteQuery = require('elastic-deletebyquery');
+// var elasticDeleteQuery = require('elastic-deletebyquery');
 var fs = require("fs");
 var moment = require('moment');
 var styleme = require('styleme')
@@ -50,17 +50,14 @@ if (args.indexOf("dev") > -1) {
   elasticSType = esConfig.dev.esMemberMappings
   elasticSTraitType = esConfig.dev.esMemberTraitsMappings
 }
-elasticDeleteQuery(elasticClient);
+// elasticDeleteQuery(elasticClient);
 
-var count = [];
-var limit = 1000;
 var colorScheme = ["bla,bre", "red,bwh", "bla,bgr", "bla,bye", "whi,bbl", "blu,bwh", "whi,bre", "blu,bye", "whi,bgr", "bla,bwh"]
 
 async function scanMemberProfileTraits(userId, memberProfileTraitsParams, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, esMemberTraitsMappings) {
-  await dynamo.query(memberProfileTraitsParams).promise().then(function (memberProfileTraits) {
-    // console.log(memberProfileTraits)
+  try {
+    const memberProfileTraits = await dynamo.query(memberProfileTraitsParams).promise();
     if (memberProfileTraits != null) {
-      //console.log("traits :: " + memberProfileTraits.Items.length)
       for (let mptIndex = 0; mptIndex < memberProfileTraits.Items.length; mptIndex++) {
         const memberProfileTrait = memberProfileTraits.Items[mptIndex];
         if (memberProfileTrait.hasOwnProperty("traits")) {
@@ -76,12 +73,9 @@ async function scanMemberProfileTraits(userId, memberProfileTraitsParams, segmen
           if (memberProfileTrait.traits.hasOwnProperty('data')) {
             memberProfileTrait.traits.data.forEach(function (item) {
               if (item.hasOwnProperty('birthDate')) {
-                console.log("birthDate :: " + item.birthDate)
                 if (item.birthDate != null) {
-                  //item.birthDate = moment(item.birthDate).format('YYYY-mm-DD hh:mm:ss')
                   item.birthDate = moment(item.birthDate).valueOf()
                 } else {
-                  //item.birthDate = moment().format('YYYY-mm-DD hh:mm:ss')
                   item.birthDate = moment().valueOf()
                 }
               }
@@ -109,15 +103,19 @@ async function scanMemberProfileTraits(userId, memberProfileTraitsParams, segmen
             });
           }
         }
-        myElasticSearch.addToIndex(elasticClient, userId + memberProfileTrait.traitId, util.cleanse(memberProfileTrait), esMemberIndices, esMemberTraitsMappings);
+        let esResponse = await myElasticSearch.addToIndex(elasticClient, userId + memberProfileTrait.traitId, util.cleanse(memberProfileTrait), esMemberIndices, esMemberTraitsMappings);
+        if (esResponse) {
+          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Found Member Profile Trait --> UserID == " + memberProfileTrait.userId + ", TraitId == " + memberProfileTrait.traitId, colorScheme))
+        } else {
+          console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Error Member Profile Trait --> UserID == " + memberProfileTrait.userId + ", TraitId == " + memberProfileTrait.traitId, colorScheme))
+        }
       }
       return true;
     }
-  }).catch(function (err) {
+  } catch (err) {
     console.log(err)
     console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Profile Trait - Failed - Invoke again", colorScheme))
-    scanMemberProfileTraits(userId, memberProfileTraitsParams, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, esMemberTraitsMappings);
-  });
+  }
 }
 
 async function getMemberProfileTraits(userId, memberProfileTraitsParams, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, esMemberTraitsMappings) {
@@ -126,7 +124,7 @@ async function getMemberProfileTraits(userId, memberProfileTraitsParams, segment
   });
 }
 
-async function scanMemberProfile(userId, lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, esMemberTraitsMappings) {
+async function scanMemberProfile(userId, segment, totalSegments, colorScheme, esMemberIndices, esMemberMappings, esMemberTraitsMappings) {
   const memberProfilesParamsUser = {
     TableName: "MemberProfile",
     KeyConditionExpression: "#userId = :userId",
@@ -135,14 +133,11 @@ async function scanMemberProfile(userId, lastEvaluatedKey, segment, totalSegment
     },
     ExpressionAttributeValues: {
       ":userId": Number(userId)
-    },
-    ExclusiveStartKey: lastEvaluatedKey
+    }
   }
 
   const memberProfiles = await dynamo.query(memberProfilesParamsUser).promise();
-  //const memberProfiles = await dynamo.scan(memberProfilesParams).promise();
   if (memberProfiles != null) {
-    console.log(styleme.style(moment().format("DD-MM-YYYY hh:mm:ss") + " - LastEvaluatedKey ------->> " + JSON.stringify(lastEvaluatedKey), colorScheme))
     for (let mpIndex = 0; mpIndex < memberProfiles.Items.length; mpIndex++) {
       const memberProfile = memberProfiles.Items[mpIndex];
       if (memberProfile.hasOwnProperty("addresses")) {
@@ -159,7 +154,7 @@ async function scanMemberProfile(userId, lastEvaluatedKey, segment, totalSegment
         memberProfile.memberSince = moment(memberProfile.memberSince).valueOf()
       }
       if (memberProfile.hasOwnProperty("updatedBy")) {
-        memberProfile.updatedBy = memberProfile.userId
+        memberProfile.updatedBy = memberProfile.userIdf
       }
       if (memberProfile.hasOwnProperty("createdBy")) {
         memberProfile.createdBy = memberProfile.userId
@@ -184,10 +179,13 @@ async function scanMemberProfile(userId, lastEvaluatedKey, segment, totalSegment
           lastName: memberProfile.lastName,
         }
       }
-
-      console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Find Member Profile --> UserID == " + memberProfile.userId, colorScheme))
-
-      myElasticSearch.addToIndex(elasticClient, memberProfile.userId, util.cleanse(memberProfile), esMemberIndices, esMemberMappings);
+      
+      let esResponse = await myElasticSearch.addToIndex(elasticClient, memberProfile.userId, util.cleanse(memberProfile), esMemberIndices, esMemberMappings);
+      if (esResponse) {
+        console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Found Member Profile --> UserID == " + memberProfile.userId + ", handleLower == " + memberProfile.handleLower, colorScheme))
+      } else {
+        console.log(styleme.style(" -->> " + moment().format("DD-MM-YYYY hh:mm:ss") + " - Error Member Profile --> UserID == " + memberProfile.userId + ", handleLower == " + memberProfile.handleLower, colorScheme))
+      }
 
       var memberProfileTraitsParams = {
         TableName: "MemberProfileTrait",
@@ -216,10 +214,10 @@ async function kickStart(args) {
   if (args.indexOf("u") > -1) {
     if (args.indexOf("dev") > -1) {
       console.log(moment().format("DD-MM-YYYY hh:mm:ss") + " - Start Dev Migration - " + args[2]);
-      scanMemberProfile(args[2], null, 0, 1, colorScheme[0 % colorScheme.length], esConfig.dev.esMemberIndices, esConfig.dev.esMemberMappings, esConfig.dev.esMemberTraitsMappings)
+      scanMemberProfile(args[2], 0, 1, colorScheme[0 % colorScheme.length], esConfig.dev.esMemberIndices, esConfig.dev.esMemberMappings, esConfig.dev.esMemberTraitsMappings)
     } else if (args.indexOf("prod") > -1) {
       console.log(moment().format("DD-MM-YYYY hh:mm:ss") + " - Start Prod Migration - " + args[2]);
-      scanMemberProfile(args[2], null, 0, 1, colorScheme[0 % colorScheme.length], esConfig.prod.esMemberIndices, esConfig.prod.esMemberMappings, esConfig.prod.esMemberTraitsMappings)
+      scanMemberProfile(args[2], 0, 1, colorScheme[0 % colorScheme.length], esConfig.prod.esMemberIndices, esConfig.prod.esMemberMappings, esConfig.prod.esMemberTraitsMappings)
     }
   } else if (args.indexOf("del") > -1) {
     if (args.indexOf("dev") > -1) {
@@ -234,10 +232,10 @@ async function kickStart(args) {
 
 /*
     Options - del u dev/prod
-    node member.js del dev 40154303
-    node member.js del prod 40154303
-
     node member.js u dev 40154303
     node member.js u prod 40672021
+
+    node member.js del dev 40154303
+    node member.js del prod 40154303
 */
 kickStart(args);

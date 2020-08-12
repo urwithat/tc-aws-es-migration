@@ -6,7 +6,7 @@ var Promise = require('bluebird');
 
 var myElasticSearch = require('./reuse/my-elastic-search');
 var util = require('./reuse/util');
-var loader = require('./loader');
+var loader = require('./reuse/loader');
 
 var esConfig = JSON.parse(fs.readFileSync("./config/aws-es-config.json"));
 
@@ -53,8 +53,13 @@ if (args.indexOf("dev") > -1) {
 
 var countStats = [];
 var checkStats = [];
-var limitStats = 6;
-var statsLastEvaluatedKeyArray = [null, null]
+
+// Prod  - public - (TT 00:00:00:30:463 / ETC 00:00:55:20:024)
+// Prod  - private - (TT 00:00:00:13:202 / ETC 00:00:00:00:000)
+// Dev - public - (TT 00:00:00:30:954 / ETC 00:00:30:49:257)
+// Dev - private - (TT 00:00:00:06:282 / ETC 00:00:00:00:000)
+var limitStats = 500;
+var statsLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var startTime;
 var fullFilePath;
@@ -73,7 +78,7 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
   try {
     const membersStatsPublic = await dynamoDBDocC.scan(memberStatsPublicParams).promise();
     if (membersStatsPublic != null) {
-
+      var esData = []
       for (let masIndex = 0; masIndex < membersStatsPublic.Items.length; masIndex++) {
         countStats[segment] = countStats[segment] + 1;
         var setPublicId = membersStatsPublic.Items[masIndex].userId + "_10";
@@ -94,19 +99,30 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
           if (membersStatsPublic.Items[masIndex].hasOwnProperty("COPILOT")) {
             membersStatsPublic.Items[masIndex].COPILOT = JSON.parse(membersStatsPublic.Items[masIndex].COPILOT)
           }
-          myElasticSearch.addToIndex(elasticClient, setPublicId, util.cleanse(membersStatsPublic.Items[masIndex]), esMemberStatsPublicIndices, esMemberStatsPublicMappings);
+          esData.push({ index: { _index: esMemberStatsPublicIndices, _type: esMemberStatsPublicMappings, _id: setPublicId } })
+          esData.push(util.cleanse(membersStatsPublic.Items[masIndex]))
+          
           util.add(userIdsCompleted, setPublicId)
-          loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
-          loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
+      if(esData.length > 0) {
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        if (esResponse.errors == false) {
+          loader.display(loader.MESSAGES.ESUPDATED, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        } else {
+          loader.display(loader.MESSAGES.ESOFFLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        }
+      }
+
       if (membersStatsPublic.LastEvaluatedKey) {
-        statsLastEvaluatedKeyArray[segment] = JSON.stringify(membersStatsPublic.LastEvaluatedKey);
-        loader.display(loader.MESSAGES.NEXT, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        statsLastEvaluatedKeyArray[segment].key = membersStatsPublic.LastEvaluatedKey;
+        statsLastEvaluatedKeyArray[segment].count = countStats[segment];
         scanMemberStatsPublic(membersStatsPublic.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
       } else {
-        loader.display(loader.MESSAGES.COMPLETED, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+        loader.display(loader.MESSAGES.COMPLETED, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
         checkStats[segment] = true;
         if (checkStats.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -121,9 +137,10 @@ async function scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, c
       }
     }
   } catch (err) {
-    loader.display(loader.MESSAGES.OFFLINE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+    // console.log(err)
+    loader.display(loader.MESSAGES.DBOFFLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      loader.display(loader.MESSAGES.REVOKE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+      loader.display(loader.MESSAGES.REVOKE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
       scanMemberStatsPublic(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -140,6 +157,7 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
   try {
     const membersStatsPrivate = await dynamoDBDocC.scan(memberStatsPrivateParams).promise();
     if (membersStatsPrivate != null) {
+      var esData = []
       for (let masIndex = 0; masIndex < membersStatsPrivate.Items.length; masIndex++) {
         countStats[segment] = countStats[segment] + 1;
         var setPrivateId = membersStatsPrivate.Items[masIndex].userId + "_" + membersStatsPrivate.Items[masIndex].groupId;
@@ -169,19 +187,31 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
           } else {
             membersStatsPrivate.Items[masIndex].COPILOT = {}
           }
-          myElasticSearch.addToIndex(elasticClient, setPrivateId, util.cleanse(membersStatsPrivate.Items[masIndex]), esMemberStatsPrivateIndices, esMemberStatsPrivateMappings);
+          esData.push({ index: { _index: esMemberStatsPrivateIndices, _type: esMemberStatsPrivateMappings, _id: setPrivateId } })
+          esData.push(util.cleanse(membersStatsPrivate.Items[masIndex]))
+          
           util.add(userIdsCompleted, setPrivateId)
-          loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.ONLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         } else {
-          loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+          loader.display(loader.MESSAGES.SKIP, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
         }
       }
+      if(esData.length > 0) {
+        let esResponse = await myElasticSearch.bulkToIndex(elasticClient, esData)
+        if (esResponse.errors == false) {
+          loader.display(loader.MESSAGES.NEXT, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        } else {
+          loader.display(loader.MESSAGES.ESOFFLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100))), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100)), segment, totalSegments, startTime, colorScheme)
+        }
+      }
+      
       if (membersStatsPrivate.LastEvaluatedKey) {
-        statsLastEvaluatedKeyArray[segment] = JSON.stringify(membersStatsPrivate.LastEvaluatedKey);
-        loader.display(loader.MESSAGES.NEXT, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)).toPrecision(2), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)).toPrecision(2), segment, totalSegments, startTime, colorScheme)
+        statsLastEvaluatedKeyArray[segment].key = membersStatsPrivate.LastEvaluatedKeys;
+        statsLastEvaluatedKeyArray[segment].count = countStats[segment];
+        
         scanMemberStatsPrivate(membersStatsPrivate.LastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
       } else {
-        loader.display(loader.MESSAGES.COMPLETED, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+        loader.display(loader.MESSAGES.COMPLETED, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
         checkStats[segment] = true;
         if (checkStats.every(util.isTrue)) {
           startTime = moment().format("DD-MM-YYYY HH:mm:ss");
@@ -196,9 +226,9 @@ async function scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, 
       }
     }
   } catch (err) {
-    loader.display(loader.MESSAGES.OFFLINE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+    loader.display(loader.MESSAGES.DBOFFLINE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
     setTimeout(function () {
-      loader.display(loader.MESSAGES.REVOKE, statsLastEvaluatedKeyArray[segment], Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
+      loader.display(loader.MESSAGES.REVOKE, statsLastEvaluatedKeyArray, totalItemCount, countStats.reduce(function (a, b) { return a + b; }, 0), Number((((countStats.reduce(function (a, b) { return a + b; }, 0) / totalItemCount) * 100)).toFixed(1)), Number(((countStats[segment] / (totalItemCount / totalSegments)) * 100).toFixed(1)), segment, totalSegments, startTime, colorScheme)
       scanMemberStatsPrivate(lastEvaluatedKey, segment, totalSegments, colorScheme, esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
     }, 5000);
   }
@@ -225,24 +255,12 @@ async function cleanUp() {
   });
 }
 
-async function getTotalItemCount(tableName) {
-  try {
-    const totalItemCountParams = {
-      TableName: tableName
-    }
-    const totalItemCountData = await dynamoDB.describeTable(totalItemCountParams).promise()
-    return totalItemCountData.Table.ItemCount
-  } catch (ex) {
-    return 0
-  }
-}
-
 async function getMemberStatsPublic(esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount) {
   return new Promise(function (resolve, reject) {
     for (var i = 0; i < statsLastEvaluatedKeyArray.length; i++) {
       countStats[i] = 0;
       checkStats[i] = false;
-      scanMemberStatsPublic(statsLastEvaluatedKeyArray[i], i, statsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
+      scanMemberStatsPublic(statsLastEvaluatedKeyArray[i].key, i, statsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberStatsPublicIndices, esMemberStatsPublicMappings, fullFilePath, totalItemCount)
     }
     resolve(true);
   });
@@ -253,7 +271,7 @@ async function getMemberStatsPrivate(esMemberStatsPrivateIndices, esMemberStatsP
     for (var i = 0; i < statsLastEvaluatedKeyArray.length; i++) {
       countStats[i] = 0;
       checkStats[i] = false;
-      scanMemberStatsPrivate(statsLastEvaluatedKeyArray[i], i, statsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
+      scanMemberStatsPrivate(statsLastEvaluatedKeyArray[i].key, i, statsLastEvaluatedKeyArray.length, colorScheme[i % colorScheme.length], esMemberStatsPrivateIndices, esMemberStatsPrivateMappings, fullFilePath, totalItemCount)
     }
     resolve(true);
   });
@@ -274,15 +292,13 @@ async function kickStart(args) {
       fullFilePath = "./userid-completed/stats-dev.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
       util.durationTaken("Stats Migration - Dev - Public - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
-      var totalItemCount = await getTotalItemCount('MemberStats')
-      console.log("totalItemCount :: " + totalItemCount)
+      var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberStats', statsLastEvaluatedKeyArray)
       await getMemberStatsPublic(esConfig.dev.esMemberStatsIndices, esConfig.dev.esMemberStatsMappings, fullFilePath, totalItemCount)
     } else if (args.indexOf("private") > -1) {
       fullFilePath = "./userid-completed/stats-dev.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
       util.durationTaken("Stats Migration - Dev - Private - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
-      var totalItemCount = await getTotalItemCount('MemberStats_Private')
-      console.log("totalItemCount :: " + totalItemCount)
+      var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberStats_Private', statsLastEvaluatedKeyArray)
       await getMemberStatsPrivate(esConfig.dev.esMemberStatsIndices, esConfig.dev.esMemberStatsMappings, fullFilePath, totalItemCount)
     }
   } else if (args.indexOf("prod") > -1) {
@@ -290,15 +306,13 @@ async function kickStart(args) {
       fullFilePath = "./userid-completed/stats-prod.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
       util.durationTaken("Stats Migration - Prod - Public - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
-      var totalItemCount = await getTotalItemCount('MemberStats')
-      console.log("totalItemCount :: " + totalItemCount)
+      var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberStats', statsLastEvaluatedKeyArray)
       await getMemberStatsPublic(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath, totalItemCount)
     } else if (args.indexOf("private") > -1) {
       fullFilePath = "./userid-completed/stats-prod.json"
       userIdsCompleted = JSON.parse(fs.readFileSync(fullFilePath));
       util.durationTaken("Stats Migration - Prod - Private - Start -->> ", startTime, moment().format("DD-MM-YYYY HH:mm:ss"))
-      var totalItemCount = await getTotalItemCount('MemberStats_Private')
-      console.log("totalItemCount :: " + totalItemCount)
+      var totalItemCount = await util.findTotalItemCount(dynamoDB, 'MemberStats_Private', statsLastEvaluatedKeyArray)
       await getMemberStatsPrivate(esConfig.prod.esMemberStatsIndices, esConfig.prod.esMemberStatsMappings, fullFilePath, totalItemCount)
     }
   }
@@ -311,6 +325,7 @@ async function kickStart(args) {
     node members.stats.js cleanup
     node members.stats.js dev public
     node members.stats.js dev private
-    node members.stats.js prod
+    node members.stats.js prod public
+    node members.stats.js prod private
 */
 kickStart(args);

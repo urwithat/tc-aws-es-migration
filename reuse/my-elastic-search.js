@@ -133,27 +133,52 @@ var obj = {
     });
   },
 
-  addToIndex: function (elasticClient, id, data, index, type) {
-    return elasticClient.index({
-      index: index,
-      type: type,
-      id: id,
-      body: data
-    }, function callback(err, response, status) {
-      if (err) {
-        //console.log(err)
-        if (err.message.indexOf('mapper_parsing_exception') === -1) {
-          console.log(" -------- Elastic Search Error - Reinvoke")
-          setTimeout(function () {
-            console.log(" End   :: Timeout =========================================================== ");
-            obj.addToIndex(elasticClient, id, data, index, type)
-          }, 5000);
-        } else {
-          console.log(" -------- Elastic Search Error - Skip, Parsing exception")
-          console.log(err)
-        }
+  addToIndex: async function (elasticClient, id, data, index, type) {
+    try {
+      const response = await elasticClient.index({
+        index: index,
+        type: type,
+        id: id,
+        body: data
+      });
+      return response
+    } catch (err) {
+      if (err.message.indexOf('mapper_parsing_exception') > -1) {
+        console.log("Elastic Search Error :: Handle Manually :: " + err.message + " :: path - " + err.path)
+      } else if (err.message.indexOf('Request Timeout') > -1) {
+        console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
+        setTimeout(function () {
+          obj.addToIndex(elasticClient, id, data, index, type)
+        }, 5000);
+      } else {
+        console.log("Elastic Search Error :: Kill process")
+        console.log(err);
+        return process.abort();
       }
-    });
+    }
+  },
+
+  bulkToIndex: async function (elasticClient, data) {
+    try {
+      const response = await elasticClient.bulk({
+        body: data,
+        refresh: true
+      });
+      return response
+    } catch (err) {
+      if (err.message.indexOf('mapper_parsing_exception') > -1) {
+        console.log("Elastic Search Error :: Handle Manually :: " + err.message + " :: path - " + err.path)
+      } else if (err.message.indexOf('Request Timeout') > -1) {
+        console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + err.message + " :: path - " + err.path)
+        setTimeout(function () {
+          obj.bulkToIndex(elasticClient, data)
+        }, 5000);
+      } else {
+        console.log("Elastic Search Error :: Kill process")
+        console.log(err);
+        return process.abort();
+      }
+    }
   },
 
   dropIndex: function (elasticClient, index) {

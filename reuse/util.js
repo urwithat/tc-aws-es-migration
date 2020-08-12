@@ -40,5 +40,18 @@ module.exports = {
   },
   findTagById: function (data, id) {
     return _.find(data, { 'id': id });
+  },
+  findTotalItemCount: async function (dynamoDB, tableName, lastEvaluatedKeyArray) {
+    var completed = lastEvaluatedKeyArray.reduce(function (total, currentValue) { return total + currentValue.count }, 0)
+    try {
+      const totalItemCountParams = {
+        TableName: tableName
+      }
+      const totalItemCountData = await dynamoDB.describeTable(totalItemCountParams).promise()
+      var totalRecords = totalItemCountData.Table.ItemCount - completed
+      return totalRecords
+    } catch (ex) {
+      throw ex
+    }
   }
 };
