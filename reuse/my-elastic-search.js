@@ -163,7 +163,7 @@ var obj = {
   bulkToIndex: async function (elasticClient, data, rerun, count) {
     try {
       if (rerun) { 
-        console.log("Elastic Search Rerun :: Adding data again")
+        console.log("Elastic Search Rerun :: Adding data again :: count :: " + count)
         count += 1
       } else {
         count = 1

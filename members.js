@@ -25,6 +25,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
+    requestTimeout : Infinity,
     // log: 'trace'
   });
   esMemberIndices = esConfig.dev.esMemberIndices
@@ -37,6 +38,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.prod.esHost,
+    requestTimeout : Infinity,
   });
   esMemberIndices = esConfig.prod.esMemberIndices
   esMemberMappings = esConfig.prod.esMemberMappings
@@ -48,6 +50,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
+    requestTimeout : Infinity,
     // log: 'trace'
   });
   esMemberIndices = esConfig.dev.esMemberIndices

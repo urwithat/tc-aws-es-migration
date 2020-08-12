@@ -23,6 +23,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
+    requestTimeout : Infinity,
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.dev.esMemberStatsIndices
@@ -34,6 +35,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.prod.esHost,
+    requestTimeout : Infinity,
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.prod.esMemberStatsIndices
@@ -45,6 +47,7 @@ if (args.indexOf("dev") > -1) {
   dynamoDBDocC = new AWS.DynamoDB.DocumentClient();
   elasticClient = new elasticsearch.Client({
     host: esConfig.dev.esHost,
+    requestTimeout : Infinity,
     //log: 'trace'
   });
   esMemberStatsIndices = esConfig.dev.esMemberStatsIndices
@@ -58,8 +61,8 @@ var checkStats = [];
 // Prod  - private - (TT 00:00:00:13:202 / ETC 00:00:00:00:000)
 // Dev - public - (TT 00:00:00:30:954 / ETC 00:00:30:49:257)
 // Dev - private - (TT 00:00:00:06:282 / ETC 00:00:00:00:000)
-var limitStats = 20000;
-var statsLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
+var limitStats = 100000;
+var statsLastEvaluatedKeyArray = [{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0},{key:null,count:0}]
 
 var startTime;
 var fullFilePath;
