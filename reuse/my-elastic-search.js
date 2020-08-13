@@ -161,9 +161,10 @@ var obj = {
   },
 
   bulkToIndex: async function (elasticClient, data, rerun, count) {
+    var check = await obj.ping(elasticClient, 1)
     try {
       if (rerun) { 
-        console.log("Elastic Search Rerun :: Adding data again :: count :: " + count)
+        console.log("ES Bulk Index :: Rerun :: count :: " + count)
         count += 1
       } else {
         count = 1
@@ -175,20 +176,32 @@ var obj = {
       return response
     } catch (err) {
       if (err.message.indexOf('mapper_parsing_exception') > -1) {
-        console.log("Elastic Search Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
-        return { errors: false }
+        var msg = "ES Bulk Index :: Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
+        return { errors: false, msg }
       } else if (err.message.indexOf('Request Timeout') > -1) {
-        console.log("Elastic Search Error :: Request Timeout :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path")
-        setTimeout(function () {
-          obj.bulkToIndex(elasticClient, data, true, count)
-        }, 5000);
-        return { errors: false }
+        var msg = "ES Bulk Index :: Error :: Request Timeout :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
+        return await obj.bulkToIndex(elasticClient, data, true, count)
       } else {
-        console.log("Elastic Search Error :: Kill process")
+        console.log("ES Bulk Index :: Error :: Kill process")
         console.log(err);
         return process.abort();
       }
     }
+  },
+
+  ping: async function (elasticClient, count) {
+    try {
+      var check = await elasticClient.ping({ requestTimeout: 5000 })
+      return check
+    } catch (ex) {
+      console.log("ES Health check :: Wait for stabilization of server :: " + count)
+      await obj.sleep(10000)
+      return await obj.ping(elasticClient, count + 1)
+    }
+  },
+
+  sleep: async function(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   },
 
   dropIndex: function (elasticClient, index) {
