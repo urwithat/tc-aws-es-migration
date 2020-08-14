@@ -1,3 +1,5 @@
+var Promise = require('bluebird');
+
 var obj = {
   createESProfileMapping: function (elasticClient, index, mapping) {
     return elasticClient.indices.putMapping({
@@ -161,46 +163,59 @@ var obj = {
   },
 
   bulkToIndex: async function (elasticClient, data, rerun, count) {
-    var check = await obj.ping(elasticClient, 1)
-    try {
-      if (rerun) { 
-        console.log("ES Bulk Index :: Rerun :: count :: " + count)
-        count += 1
-      } else {
-        count = 1
+    return new Promise(async function (resolve, reject) {
+      var check = await obj.ping(elasticClient, 1)
+      console.log("ES Health check :: " + check + ", count :: " + count)
+      var response
+      try {
+        if (rerun) {
+          console.log("ES Bulk Index :: Rerun :: count :: " + count)
+          count += 1
+        } else {
+          count = 1
+        }
+        response = await elasticClient.bulk({
+          body: data,
+          refresh: true
+        });
+        resolve(response)
+      } catch (err) {
+        if (err.message.indexOf('mapper_parsing_exception') > -1) {
+          var msg = "ES Bulk Index :: Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
+          response = { errors: false, msg }
+          resolve(response)
+        } else if (err.message.indexOf('Request Timeout') > -1) {
+          var msg = "ES Bulk Index :: Error :: Request Timeout :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
+          response = await obj.bulkToIndex(elasticClient, data, true, count)
+          resolve(response)
+        } else if (err.message.indexOf('No Living connections') > -1) {
+          var msg = "ES Bulk Index :: Error :: No Living connections :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
+          response = await obj.bulkToIndex(elasticClient, data, true, count)
+          resolve(response)
+        } else {
+          console.log("ES Bulk Index :: Error :: Kill process")
+          console.log(err);
+          return process.abort();
+        }
       }
-      const response = await elasticClient.bulk({
-        body: data,
-        refresh: true
-      });
-      return response
-    } catch (err) {
-      if (err.message.indexOf('mapper_parsing_exception') > -1) {
-        var msg = "ES Bulk Index :: Error :: Handle Manually :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
-        return { errors: false, msg }
-      } else if (err.message.indexOf('Request Timeout') > -1) {
-        var msg = "ES Bulk Index :: Error :: Request Timeout :: Rerun :: " + count + " :: MSG :: " + (err.message) ? err.message : "Empty message" + " :: path - " + (err.path) ? err.path : "Empty path"
-        return await obj.bulkToIndex(elasticClient, data, true, count)
-      } else {
-        console.log("ES Bulk Index :: Error :: Kill process")
-        console.log(err);
-        return process.abort();
-      }
-    }
+    })
   },
 
   ping: async function (elasticClient, count) {
-    try {
-      var check = await elasticClient.ping({ requestTimeout: 5000 })
-      return check
-    } catch (ex) {
-      console.log("ES Health check :: Wait for stabilization of server :: " + count)
-      await obj.sleep(10000)
-      return await obj.ping(elasticClient, count + 1)
-    }
+    return new Promise(async function (resolve, reject) {
+      var check
+      try {
+        check = await elasticClient.ping({ requestTimeout: 10000 })
+        resolve(check)
+      } catch (ex) {
+        console.log("ES Health check :: Wait for stabilization of server :: " + count)
+        await obj.sleep(10000)
+        resolve(await obj.ping(elasticClient, count + 1))
+      }
+    })
   },
 
-  sleep: async function(ms) {
+  sleep: async function (ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   },
 
